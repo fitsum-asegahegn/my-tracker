@@ -1,0 +1,17 @@
+import {useEffect,useState,useCallback} from 'react';import {sb} from './lib/supabase.js';import {enablePush} from './lib/push.js';import Charts,{Rings} from './Charts.jsx';import {PILLARS,score,td} from './lib/logic.js';
+const PRESETS=['Praying for you 🙏','Have you prayed today?','Time to see your confessor?','Keep going, proud of you'];
+function NudgeBox({owner}){const [m,setM]=useState(''),[r,setR]=useState('');
+ const send=async t=>{const {error}=await sb.rpc('send_nudge',{p_owner:owner,p_msg:t});setR(error?error.message:'Sent. They will see it in the app and by Telegram or push.');if(!error)setM('')};
+ return <div className="card"><label>Send a gentle nudge (one every 12 hours)</label><div className="chips">{PRESETS.map(t=><button key={t} className="btn sm" onClick={()=>send(t)}>{t}</button>)}</div>
+ <input placeholder="Or write your own (max 140)" maxLength={140} value={m} onChange={e=>setM(e.target.value)}/><button className="btn pri" onClick={()=>m.trim()&&send(m.trim())}>Send</button><p className="mu">{r}</p></div>}
+export default function Share({uid}){
+ const [ps,setPs]=useState([]),[em,setEm]=useState(''),[mine,setMine]=useState([]),[msg,setMsg]=useState('');
+ const load=useCallback(async()=>{const [a,b]=await Promise.all([sb.from('partners').select('*'),sb.rpc('partner_view')]);setPs(a.data||[]);setMine(b.data||[])},[]);useEffect(()=>{load()},[load]);
+ const add=async()=>{const e=em.trim().toLowerCase();if(!e)return;const r=await sb.from('partners').insert({owner_id:uid,partner_email:e});if(r.error)setMsg(r.error.message);else{setEm('');load()}};
+ return <><h2>Push notifications</h2><div className="card"><p className="mu">Get the morning and evening reminder on this device even when the app is closed.</p>
+ <button className="btn pri" onClick={()=>enablePush(uid).then(()=>setMsg('Notifications enabled on this device.')).catch(e=>setMsg(e.message))}>🔔 Enable on this device</button><p className="mu">{msg}</p></div>
+ <h2>Accountability partner</h2><div className="card"><p className="mu">Your partner signs in with their own account (same email you enter here) and sees your habit check-ins only: no friends, tasks or Telegram details. Remove them any time.</p>
+ {ps.map(p=><div className="row" key={p.id}><div className="t">{p.partner_email}</div><button className="btn sm" onClick={async()=>{await sb.from('partners').delete().eq('id',p.id);load()}}>Remove</button></div>)}
+ <input type="email" placeholder="Confessor or friend's email" value={em} onChange={e=>setEm(e.target.value)}/><button className="btn pri" onClick={add}>Share my progress</button></div>
+ {mine.map(o=>{const hs=o.habits.map(h=>({...h,logs:h.logs}));return <div key={o.owner}><h2>Shared with me: {o.name}</h2><div className="card hero"><div className="rings"><Rings hs={hs} start={o.start||td()}/></div>
+  <div className="legend">{Object.entries(PILLARS).map(([k,v])=><div key={k} style={{borderColor:v.c}}><span>{v.n}<br/><span className="mu">{v.e}</span></span><b style={{color:v.c}}>{score(hs,k,o.start||td())}%</b></div>)}</div></div><NudgeBox owner={o.owner}/><Charts hs={hs}/></div>})}</>}

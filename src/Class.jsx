@@ -1,0 +1,29 @@
+import {useEffect,useState,useCallback} from 'react';
+import {sb} from './lib/supabase.js';import {useRealtime} from './lib/realtime.js';import {useKV} from './lib/kv.js';
+export const DAYS=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+export const CRIT=['Interest in it','Job prospects','Workload fit','Uses my stats strength','Teaching quality'];
+export const ROAD0=['Python basics: variables, loops, functions','pandas + NumPy on a real dataset','scikit-learn: regression, trees, evaluation','First end-to-end ML project on GitHub','Neural nets with PyTorch','LLM / agents mini project','SQL + Git fluency'].map(t=>[t,0]);
+export const HRS0={AI:0,CDS:0,Code:0},DEC0={AI:[3,3,3,3,3],CDS:[3,3,3,3,3]},JOB0={applied:0,interviews:0,offers:0};
+function useSessions(){const [s,setS]=useState([]);const load=useCallback(()=>sb.from('sessions').select('*').then(({data})=>setS((data||[]).sort((a,b)=>(a.time||'').localeCompare(b.time||'')))),[]);useEffect(()=>{load()},[load]);useRealtime(['sessions'],load);return [s,load]}
+const tc=t=>t==='Faith'?'var(--faith)':'var(--class)';
+export function TodayClasses(){const [ss]=useSessions();const x=ss.filter(s=>s.day===new Date().getDay());
+ return x.length?<><h2>Today's schedule</h2><div className="card">{x.map(s=><div className="row" key={s.id}><div className="t"><b>{s.time}</b> {s.name}<small>{[s.room,s.who].filter(Boolean).join(' · ')}</small></div><span className="tag" style={{color:tc(s.track)}}>{s.track}</span></div>)}</div></>:null}
+const Seg=({v,on})=><div className="seg">{[1,2,3,4,5].map(n=><button key={n} className={n===v?'on':''} onClick={()=>on(n)}>{n}</button>)}</div>;
+export default function ClassExtras({uid}){
+ const [ss,load]=useSessions(),kv=useKV(uid),[f,setF]=useState({name:'',day:1,time:'08:30–11:30',track:'CDS'}),[tk,setTk]=useState('');
+ const hrs=kv.get('hrs',HRS0),dec=kv.get('dec',DEC0),road=kv.get('road',ROAD0),job=kv.get('job',JOB0);
+ const sum=k=>dec[k].reduce((a,b)=>a+b,0),A=sum('AI'),C=sum('CDS'),tasks=kv.get('tasks',[]);
+ const add=async()=>{if(!f.name.trim())return;await sb.from('sessions').insert({...f,day:+f.day,user_id:uid});setF({...f,name:''});load()};
+ const rm=async id=>{await sb.from('sessions').delete().eq('id',id);load()};
+ return <>
+ <h2>Weekly timetable</h2>{[1,2,3,4,5,6].map(d=>{const x=ss.filter(s=>s.day===d&&s.track!=='Faith');return x.length?<div key={d}><div className="day">{DAYS[d]}</div><div className="card">{x.map(s=><div className="row" key={s.id}><div className="t"><b>{s.name}</b><small>{s.time}{s.room?' · '+s.room:''}{s.who?' · '+s.who:''}</small></div><span className="tag" style={{color:tc(s.track)}}>{s.track}</span><button className="btn sm" onClick={()=>rm(s.id)} aria-label="remove">✕</button></div>)}</div></div>:null})}
+ <div className="card"><label>Add a class session</label><input placeholder="Course name" value={f.name} onChange={e=>setF({...f,name:e.target.value})}/>
+ <div className="form3"><select value={f.day} onChange={e=>setF({...f,day:e.target.value})}>{[1,2,3,4,5,6].map(d=><option key={d} value={d}>{DAYS[d]}</option>)}</select><input value={f.time} onChange={e=>setF({...f,time:e.target.value})}/><select value={f.track} onChange={e=>setF({...f,track:e.target.value})}><option>AI</option><option>CDS</option></select></div>
+ <button className="btn pri" onClick={add}>Add session</button><p className="mu">AI times came from your photo. Check them against the printed sheet. CDS courses: Optimization Methods, Statistics for Data Science, Programming & Linux OS, Mathematical Methods & Modeling.</p></div>
+ <h2>Study hours</h2><div className="card grid3">{Object.keys(HRS0).map(k=><div key={k}><b>{hrs[k]}h</b><span className="mu">{k}</span><br/><button className="btn sm" onClick={()=>kv.set('hrs',{...hrs,[k]:hrs[k]+.5})}>+0.5h</button></div>)}</div>
+ <h2>Which one to drop?</h2><div className="card">{CRIT.map((c,i)=><div key={c}><label>{c}</label>{['AI','CDS'].map(k=><div className="seg-row" key={k}><span className="mu">{k}</span><Seg v={dec[k][i]} on={n=>kv.set('dec',{...dec,[k]:dec[k].map((x,j)=>j===i?n:x)})}/></div>)}</div>)}
+ <h3 style={{marginTop:10}}>AI {A} · CDS {C} <span className="mu">{A===C?'tied':A>C?'AI leads':'CDS leads'}</span></h3></div>
+ <h2>Coding roadmap</h2><div className="card">{road.map((r,i)=><div className="row" key={r[0]}><button className={'chk '+(r[1]?'on':'')} style={r[1]?{background:'var(--class)'}:{}} onClick={()=>kv.set('road',road.map((x,j)=>j===i?[x[0],x[1]?0:1]:x))}>{r[1]?'✓':''}</button><div className="t">{r[0]}</div></div>)}<div className="bar"><i style={{width:road.filter(r=>r[1]).length/road.length*100+'%',background:'var(--class)'}}/></div></div>
+ <h2>Job search</h2><div className="card grid3">{Object.keys(JOB0).map(k=><div key={k}><b>{job[k]}</b><span className="mu">{k}</span><br/><button className="btn sm" onClick={()=>kv.set('job',{...job,[k]:Math.max(0,job[k]-1)})}>−</button> <button className="btn sm" onClick={()=>kv.set('job',{...job,[k]:job[k]+1})}>+1</button></div>)}</div>
+ <h2>Tasks & deadlines</h2><div className="card">{tasks.map((t,i)=><div className="row" key={i}><button className={'chk '+(t.done?'on':'')} style={t.done?{background:'var(--class)'}:{}} onClick={()=>kv.set('tasks',tasks.map((x,j)=>j===i?{...x,done:!x.done}:x))}>{t.done?'✓':''}</button><div className="t" style={t.done?{color:'var(--mu)',textDecoration:'line-through'}:{}}>{t.t}</div><button className="btn sm" onClick={()=>kv.set('tasks',tasks.filter((_,j)=>j!==i))}>✕</button></div>)}
+ <input placeholder="New task or deadline, then press Enter" value={tk} onChange={e=>setTk(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&tk.trim()){kv.set('tasks',[...tasks,{t:tk.trim(),done:false}]);setTk('')}}}/></div></>}
