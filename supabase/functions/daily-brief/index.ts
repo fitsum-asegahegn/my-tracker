@@ -3,7 +3,9 @@ import webpush from 'npm:web-push@3.6.7';
 const PER:Record<string,number>={d:1,w:7,m:30,m2:60,m6:180,y:365};
 const EM:Record<string,string>={faith:'✝️',class:'📚',social:'🤝'};
 Deno.serve(async(req)=>{
-  if(req.headers.get('Authorization')!==`Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`)return new Response('unauthorized',{status:401}); // only the cron job may call this
+  const cs=Deno.env.get('CRON_SECRET'),sk=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  const authed=(cs&&req.headers.get('x-cron-secret')===cs)||(sk&&req.headers.get('Authorization')===`Bearer ${sk}`);
+  if(!authed)return new Response('unauthorized: send header x-cron-secret matching the CRON_SECRET secret',{status:401}); // only the cron job may call this
   const db=createClient(Deno.env.get('SUPABASE_URL')!,Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
   const token=Deno.env.get('TELEGRAM_BOT_TOKEN'),vp=Deno.env.get('VAPID_PUBLIC'),vs=Deno.env.get('VAPID_PRIVATE');
   if(vp&&vs)webpush.setVapidDetails('mailto:'+(Deno.env.get('VAPID_SUBJECT')||'me@example.com'),vp,vs);
