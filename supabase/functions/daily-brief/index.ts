@@ -14,12 +14,13 @@ Deno.serve(async(req)=>{
   const getHabits=async(uid:string)=>((await db.from('habits').select('name,pillar,freq,habit_logs(day)').eq('user_id',uid).order('sort')).data??[]).map((h:any)=>({...h,logs:(h.habit_logs??[]).map((l:any)=>l.day).sort()}));
   async function deliver(uid:string,chat:string|null,text:string,title:string,body:string){
     let ok=false;
-    if(token&&chat){const r=await fetch(`https://api.telegram.org/bot${token}/sendMessage`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:chat,text})});ok=r.ok||ok}
+    if(!token)out.errors.push('TELEGRAM_BOT_TOKEN secret is not set');else if(!chat)out.errors.push('no Telegram chat id saved in Settings');
+    else{const r=await fetch(`https://api.telegram.org/bot${token}/sendMessage`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:chat,text})});if(r.ok)ok=true;else out.errors.push('telegram: '+(await r.text()))}
     if(vp&&vs){const {data:subs}=await db.from('push_subs').select('*').eq('user_id',uid);
       for(const s of subs??[]){try{await webpush.sendNotification({endpoint:s.endpoint,keys:{p256dh:s.p256dh,auth:s.auth}},JSON.stringify({title,body}));ok=true}
-        catch(e:any){if(e.statusCode===404||e.statusCode===410)await db.from('push_subs').delete().eq('endpoint',s.endpoint)}}}
+        catch(e:any){if(e.statusCode===404||e.statusCode===410)await db.from('push_subs').delete().eq('endpoint',s.endpoint);else out.errors.push('push: '+(e.statusCode||e.message))}}}
     return ok}
-  const out={reminders:0,summaries:0,nudges:0};
+  const out={reminders:0,summaries:0,nudges:0,errors:[] as string[],addisTime:A.toISOString().slice(0,16)+' (UTC+3 shifted)'};
   const {data:profs}=await db.from('profiles').select('*');
   const {data:nd}=await db.from('nudges').select('*').eq('delivered',false).limit(50);
   for(const n of nd??[]){const o=(profs??[]).find((q:any)=>q.id===n.owner_id);
@@ -38,8 +39,9 @@ Deno.serve(async(req)=>{
       if(slot==='am'&&ss?.length)L.push('📚 Today:',...ss.map((s:any)=>`• ${s.time} ${s.name}${s.room?' ('+s.room+')':''}`),'');
       L.push(open.length?'⏳ Still open:\n'+open.slice(0,8).map((h:any)=>'• '+h.name).join('\n'):'🎉 All on track');
       if(call.length)L.push('','🤝 Call today:',...call.map(f=>`• ${f.n} (${f.g} days)`));
-      await deliver(p.id,p.tg_chat,L.join('\n'),slot==='am'?'ሕይወቴ — good morning':'ሕይወቴ — evening check',open.length?`${open.length} still open${call.length?` · call ${call[0].n}`:''}`:'All on track 🎉');
-      await db.from('profiles').update(slot==='am'?{last_am:today}:{last_pm:today}).eq('id',p.id);out.reminders++}
+      const sent=await deliver(p.id,p.tg_chat,L.join('\n'),slot==='am'?'ሕይወቴ — good morning':'ሕይወቴ — evening check',open.length?`${open.length} still open${call.length?` · call ${call[0].n}`:''}`:'All on track 🎉');
+      if(sent){await db.from('profiles').update(slot==='am'?{last_am:today}:{last_pm:today}).eq('id',p.id);out.reminders++} // only mark done when delivered, so a failed send retries on the next tick
+    }
   }
   // Sunday 19:00–23:59 Addis: weekly summary to each partner
   if(wd===0&&mins>=19*60){
