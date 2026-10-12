@@ -12,5 +12,7 @@ export const lastOf=h=>[...h.logs].sort().pop();
 export const doneToday=h=>h.logs.includes(td());
 export const isOk=(h,start)=>h.freq==='d'?doneToday(h):dd(lastOf(h)||start,td())<PER[h.freq];
 export const daysLeft=(h,start)=>PER[h.freq]-dd(lastOf(h)||start,td());
-export const score=(hs,p,start)=>{const x=hs.filter(h=>h.pillar===p);return x.length?Math.round(x.filter(h=>isOk(h,start)).length/x.length*100):0};
+const wkRange=()=>{const n=new Date(),k=(n.getDay()+6)%7,a=new Date(n),b=new Date(n);a.setDate(n.getDate()-k);b.setDate(n.getDate()-k+6);return [td(a),td(b)]};
+// Ring % = how much of THIS WEEK's plan for the pillar is done (starts at 0 each Monday)
+export const score=(hs,p)=>{const [a,b]=wkRange(),g=hs.filter(h=>h.pillar===p),exp=g.reduce((s,h)=>s+7/PER[h.freq],0),done=g.reduce((s,h)=>s+h.logs.filter(x=>x>=a&&x<=b).length,0);return exp?Math.min(100,Math.round(done/exp*100)):0};
 export const streak=h=>{let s=0,d=new Date();if(!h.logs.includes(td()))d.setDate(d.getDate()-1);while(h.logs.includes(td(d))){s++;d.setDate(d.getDate()-1)}return s};
