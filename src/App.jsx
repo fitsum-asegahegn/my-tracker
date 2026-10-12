@@ -1,6 +1,6 @@
 import {useEffect,useState,useCallback} from 'react';
 import {sb} from './lib/supabase.js';
-import ClassExtras,{TodayClasses} from './Class.jsx';import Friends from './Friends.jsx';import Charts,{Rings} from './Charts.jsx';import Nudges from './Nudges.jsx';import Share from './Share.jsx';import {useRealtime} from './lib/realtime.js';import {makeReport} from './report.js';
+import ClassExtras,{TodayClasses} from './Class.jsx';import Friends from './Friends.jsx';import Charts,{Rings} from './Charts.jsx';import {Gauge,WeekPlanner,WeekCurve} from './Week.jsx';import Nudges from './Nudges.jsx';import Share from './Share.jsx';import {useRealtime} from './lib/realtime.js';import {makeReport} from './report.js';
 import {PILLARS,FREQ,td,dd,eth,doneToday,isOk,daysLeft,score,streak} from './lib/logic.js';
 
 function Auth(){const [e,setE]=useState(''),[p,setP]=useState(''),[m,setM]=useState(''),[up,setUp]=useState(false);
@@ -34,18 +34,19 @@ export default function App(){
  const views={
   today:()=><><div className="mu">{td()} · {eth()} ዓ.ም</div><h1 style={{fontSize:'1.9rem',margin:'4px 0 14px'}}>Selam, {prof?.name||''}</h1><Nudges/>
    <div className="card hero"><div className="rings"><Rings hs={hs} start={start}/></div><div className="legend">{Object.entries(PILLARS).map(([k,v])=><div key={k} style={{borderColor:v.c}}><span>{v.n}<br/><span className="mu">{v.e}</span></span><b style={{color:v.c}}>{score(hs,k,start)}%</b></div>)}</div></div>
-   <div className="card" style={{borderColor:'var(--class)'}}><h3>{dl>0?`Day ${31-dl} of 30 — AI vs CDS decision in ${dl} days`:'Decision day has passed. Choose your track.'}</h3><div className="bar"><i style={{width:Math.min(100,(30-dl)/30*100)+'%',background:'var(--class)'}}/></div></div>
+   <Gauge uid={session.user.id}/><div className="card" style={{borderColor:'var(--class)'}}><h3>{dl>0?`Day ${31-dl} of 30 — AI vs CDS decision in ${dl} days`:'Decision day has passed. Choose your track.'}</h3><div className="bar"><i style={{width:Math.min(100,(30-dl)/30*100)+'%',background:'var(--class)'}}/></div></div>
    <TodayClasses/><h2>To do now</h2><div className="card">{hs.filter(h=>h.freq==='d'||!isOk(h,start)||doneToday(h)).map(h=><Row key={h.id} h={h} start={start} onToggle={toggle}/>)}</div><Charts hs={hs}/></>,
   faith:()=>pillar('faith'),class:()=><>{pillar('class')}<ClassExtras uid={session.user.id}/></>,social:()=><>{pillar('social')}<Friends uid={session.user.id}/></>,
   plan:()=>{const g={};plan.forEach(p=>(g[p.quarter]=g[p.quarter]||[]).push(p));const n=plan.filter(p=>p.done).length;
    return <><h1>Year plan</h1><p className="mu">{n}/{plan.length} complete</p><div className="bar"><i style={{width:(plan.length?n/plan.length*100:0)+'%',background:'var(--faith)'}}/></div>
    {Object.entries(g).map(([q,it])=><div key={q}><div className="day">{q}</div><div className="card">{it.map(p=><div className="row" key={p.id}><button className={'chk '+(p.done?'on':'')} style={p.done?{background:'var(--faith)'}:{}} onClick={()=>togglePlan(p)}>{p.done?'✓':''}</button><div className="t">{p.title}</div></div>)}</div></div>)}</>},
+  week:()=><><WeekPlanner uid={session.user.id}/><WeekCurve hs={hs}/>{views.plan()}</>,
   more:()=><><h1>Settings</h1><h2>Telegram</h2><div className="card"><p className="mu">Message your bot, then paste your chat ID (from @userinfobot). The bot token lives only in a server secret, never in this app.</p>
    <label>Chat ID</label><input defaultValue={prof?.tg_chat||''} onBlur={e=>saveProf({tg_chat:e.target.value.trim()||null})}/>
    <div className="form3" style={{gridTemplateColumns:'1fr 1fr'}}><div><label>Morning reminder</label><input type="time" defaultValue={(prof?.tg_am||'07:00').slice(0,5)} onBlur={e=>saveProf({tg_am:e.target.value||'07:00'})}/></div><div><label>Evening reminder</label><input type="time" defaultValue={(prof?.tg_pm||'20:30').slice(0,5)} onBlur={e=>saveProf({tg_pm:e.target.value||'20:30'})}/></div></div>
    <label style={{display:'flex',gap:10,alignItems:'center',margin:'0 0 12px'}}><input type="checkbox" style={{width:'auto',margin:0}} defaultChecked={prof?.weekly_summary!==false} onChange={e=>saveProf({weekly_summary:e.target.checked})}/>Send my weekly summary to my partner on Sundays (19:00)</label>
    <label>Monthly almsgiving (Birr)</label><input type="number" defaultValue={prof?.alms||500} onBlur={e=>saveProf({alms:+e.target.value})}/></div>
    <Share uid={session.user.id}/><h2>Report</h2><div className="card"><p className="mu">A PowerPoint of the last 30 days: scores, faith habits, class, social and plan.</p><button className="btn pri" onClick={()=>makeReport().catch(e=>alert(e.message))}>📊 Generate PowerPoint</button></div><button className="btn" onClick={()=>sb.auth.signOut()}>Sign out</button></>};
- const T=[['today','☀️','Today'],['faith','✝️','Faith'],['class','📚','Class'],['social','🤝','Social'],['plan','🗺️','Plan'],['more','⚙️','More']];
+ const T=[['today','☀️','Today'],['faith','✝️','Faith'],['class','📚','Class'],['social','🤝','Social'],['week','📅','Week'],['more','⚙️','More']];
  return <><main>{views[tab]()}</main><nav>{T.map(([k,i,l])=><button key={k} className={tab===k?'on':''} onClick={()=>{setTab(k);scrollTo(0,0)}}><span>{i}</span>{l}</button>)}</nav></>;
 }

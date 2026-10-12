@@ -1,5 +1,5 @@
 import {useEffect,useState,useCallback} from 'react';
-import {sb} from './lib/supabase.js';import {useRealtime} from './lib/realtime.js';import {useKV} from './lib/kv.js';
+import {sb} from './lib/supabase.js';import {useRealtime} from './lib/realtime.js';import {td} from './lib/logic.js';import {useKV} from './lib/kv.js';
 export const DAYS=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 export const CRIT=['Interest in it','Job prospects','Workload fit','Uses my stats strength','Teaching quality'];
 export const ROAD0=['Python basics: variables, loops, functions','pandas + NumPy on a real dataset','scikit-learn: regression, trees, evaluation','First end-to-end ML project on GitHub','Neural nets with PyTorch','LLM / agents mini project','SQL + Git fluency'].map(t=>[t,0]);
@@ -20,7 +20,7 @@ export default function ClassExtras({uid}){
  <div className="card"><label>Add a class session</label><input placeholder="Course name" value={f.name} onChange={e=>setF({...f,name:e.target.value})}/>
  <div className="form3"><select value={f.day} onChange={e=>setF({...f,day:e.target.value})}>{[1,2,3,4,5,6].map(d=><option key={d} value={d}>{DAYS[d]}</option>)}</select><input value={f.time} onChange={e=>setF({...f,time:e.target.value})}/><select value={f.track} onChange={e=>setF({...f,track:e.target.value})}><option>AI</option><option>CDS</option></select></div>
  <button className="btn pri" onClick={add}>Add session</button><p className="mu">AI times came from your photo. Check them against the printed sheet. CDS courses: Optimization Methods, Statistics for Data Science, Programming & Linux OS, Mathematical Methods & Modeling.</p></div>
- <h2>Study hours</h2><div className="card grid3">{Object.keys(HRS0).map(k=><div key={k}><b>{hrs[k]}h</b><span className="mu">{k}</span><br/><button className="btn sm" onClick={()=>kv.set('hrs',{...hrs,[k]:hrs[k]+.5})}>+0.5h</button></div>)}</div>
+ <h2>Study hours</h2><div className="card grid3">{Object.keys(HRS0).map(k=><div key={k}><b>{hrs[k]}h</b><span className="mu">{k}</span><br/><button className="btn sm" onClick={()=>{kv.set('hrs',{...hrs,[k]:hrs[k]+.5});const sl=kv.get('studylog',{});kv.set('studylog',{...sl,[td()]:(sl[td()]||0)+.5})}}>+0.5h</button></div>)}</div>
  <h2>Which one to drop?</h2><div className="card">{CRIT.map((c,i)=><div key={c}><label>{c}</label>{['AI','CDS'].map(k=><div className="seg-row" key={k}><span className="mu">{k}</span><Seg v={dec[k][i]} on={n=>kv.set('dec',{...dec,[k]:dec[k].map((x,j)=>j===i?n:x)})}/></div>)}</div>)}
  <h3 style={{marginTop:10}}>AI {A} · CDS {C} <span className="mu">{A===C?'tied':A>C?'AI leads':'CDS leads'}</span></h3></div>
  <h2>Coding roadmap</h2><div className="card">{road.map((r,i)=><div className="row" key={r[0]}><button className={'chk '+(r[1]?'on':'')} style={r[1]?{background:'var(--class)'}:{}} onClick={()=>kv.set('road',road.map((x,j)=>j===i?[x[0],x[1]?0:1]:x))}>{r[1]?'✓':''}</button><div className="t">{r[0]}</div></div>)}<div className="bar"><i style={{width:road.filter(r=>r[1]).length/road.length*100+'%',background:'var(--class)'}}/></div></div>
