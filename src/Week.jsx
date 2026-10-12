@@ -5,25 +5,26 @@ const mn=t=>{const m=/^(\d{1,2}):(\d{2})$/.exec((t||'').trim());return m?+m[1]*6
 const rng=t=>{const m=(t||'').match(/\d{1,2}:\d{2}/g);if(!m||m.length<2)return null;const a=mn(m[0]),e=mn(m[1]);return e>a?[a,e]:null};
 const useWide=()=>{const q='(min-width:820px)',has=typeof matchMedia!=='undefined';const [w,setW]=useState(()=>has&&matchMedia(q).matches);useEffect(()=>{if(!has)return;const m=matchMedia(q),f=()=>setW(m.matches);m.addEventListener('change',f);return()=>m.removeEventListener('change',f)},[]);return w};
 const weekDates=()=>{const n=new Date(),k=(n.getDay()+6)%7,o=[];for(let i=0;i<7;i++){const d=new Date(n);d.setDate(n.getDate()-k+i);o.push(td(d))}return o};
+const dayFrac=()=>{const n=new Date(),h=n.getHours()+n.getMinutes()/60;return Math.min(1,Math.max(0,(h-6)/16))}; // share of today that has passed (06:00-22:00)
 const smooth=p=>p.map((q,i)=>i?`C${(p[i-1][0]+q[0])/2},${p[i-1][1]} ${(p[i-1][0]+q[0])/2},${q[1]} ${q[0]},${q[1]}`:`M${q[0]},${q[1]}`).join(' ');
 
 export function Gauge({uid}){const kv=useKV(uid),log=kv.get('studylog',{}),tgt=kv.get('target',10);
- const wk=weekDates(),idx=Math.max(wk.indexOf(td()),0),h=wk.reduce((a,d)=>a+(log[d]||0),0),p=Math.min(1,h/tgt),pace=tgt*(idx+1)/7,diff=+(h-pace).toFixed(1);
+ const wk=weekDates(),idx=Math.max(wk.indexOf(td()),0),h=wk.reduce((a,d)=>a+(log[d]||0),0),p=Math.min(1,h/tgt),pace=tgt*(idx+dayFrac())/7,diff=+(h-pace).toFixed(1);
  return <div className="card"><div style={{display:'flex',alignItems:'center',gap:14}}>
  <svg viewBox="0 0 120 72" style={{width:150,flex:'none'}} role="img" aria-label={`Study hours this week: ${h} of ${tgt}`}><defs><linearGradient id="gg" x1="0" x2="1" y1="0" y2="0"><stop offset="0" stopColor="#7AA2FF"/><stop offset="1" stopColor="#6FD6A8"/></linearGradient></defs>
   <path d="M10 62 A50 50 0 0 1 110 62" fill="none" stroke="#252a47" strokeWidth="9" strokeLinecap="round"/>
   <path d="M10 62 A50 50 0 0 1 110 62" fill="none" stroke="url(#gg)" strokeWidth="9" strokeLinecap="round" pathLength="100" strokeDasharray={`${Math.max(p*100,.5)} 100`} style={{transition:'stroke-dasharray .9s cubic-bezier(.2,.8,.2,1)'}}/>
   <text x="60" y="52" textAnchor="middle" fill="#EEEAF6" fontSize="19" fontFamily="Fraunces,serif">{h}h</text><text x="60" y="66" textAnchor="middle" fill="#9A9CB8" fontSize="7">of {tgt}h this week</text></svg>
- <div style={{flex:1}}><h3>Study this week</h3><div className="mu" style={{color:diff>=0?'var(--social)':'var(--faith)'}}>{diff>=0?`Ahead of pace by ${diff}h`:`${-diff}h behind pace`}</div>
+ <div style={{flex:1}}><h3>Study this week</h3><div className="mu" style={{color:diff>=-.5?'var(--social)':'var(--faith)'}}>{Math.abs(diff)<.5?'On pace':diff>0?`Ahead of pace by ${diff}h`:`${-diff}h behind pace`}</div>
  <div style={{marginTop:8}}><span className="mu">Weekly target </span><button className="btn sm" onClick={()=>kv.set('target',Math.max(1,tgt-1))}>−</button> <button className="btn sm" onClick={()=>kv.set('target',tgt+1)}>+</button></div></div></div></div>}
 
 export function WeekCurve({hs}){
  const wk=weekDates(),idx=Math.max(wk.indexOf(td()),0),per=hs.reduce((a,h)=>a+1/PER[h.freq],0);
- const cum=wk.map(d=>hs.reduce((a,h)=>a+h.logs.filter(x=>x<=d&&x>=wk[0]).length,0)),exp=wk.map((_,i)=>per*(i+1));
+ const cum=wk.map(d=>hs.reduce((a,h)=>a+h.logs.filter(x=>x<=d&&x>=wk[0]).length,0)),exp=wk.map((_,i)=>per*(i+(i===idx?dayFrac():1)));
  const max=Math.max(2,...exp.map(v=>v*1.15),...cum.slice(0,idx+1))*1.05,X=i=>34+i*(296/6),Y=v=>164-v/max*146;
  const act=cum.slice(0,idx+1).map((v,i)=>[X(i),Y(v)]),pts=a=>a.map(p=>p.join(',')).join(' L');
  const hi=exp.map((v,i)=>[X(i),Y(v*1.15)]),lo=exp.map((v,i)=>[X(i),Y(v*.85)]),band='M'+pts(hi)+' L'+pts(lo.slice().reverse())+' Z';
- const ratio=exp[idx]?cum[idx]/exp[idx]:1,st=ratio>=.9?['On track','var(--social)']:ratio>=.6?['Slightly behind','var(--faith)']:['Behind','var(--bad)'];
+ const ratio=exp[idx]<1?1:cum[idx]/exp[idx],st=ratio>=.9?['On track','var(--social)']:ratio>=.6?['Slightly behind','var(--faith)']:['Behind','var(--bad)'];
  const last=act[act.length-1],delta=Math.round(cum[idx]-exp[idx]),ticks=[0,.25,.5,.75,1].map(f=>Math.round(max*f));
  const pil=Object.keys(PILLARS).map(k=>{const g=hs.filter(h=>h.pillar===k);return {k,done:g.reduce((a,h)=>a+h.logs.filter(x=>x>=wk[0]&&x<=wk[6]).length,0),exp:g.reduce((a,h)=>a+7/PER[h.freq],0)}});
  return <><h2>This week's progress</h2><div className="card"><div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}><span className="mu">Check-ins vs your plan</span><span className="tag" style={{color:st[1]}}>{st[0]} · {delta>=0?'+':''}{delta}</span></div>
