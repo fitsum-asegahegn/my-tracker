@@ -20,17 +20,26 @@ export function Gauge({uid}){const kv=useKV(uid),log=kv.get('studylog',{}),tgt=k
 export function WeekCurve({hs}){
  const wk=weekDates(),idx=Math.max(wk.indexOf(td()),0),per=hs.reduce((a,h)=>a+1/PER[h.freq],0);
  const cum=wk.map(d=>hs.reduce((a,h)=>a+h.logs.filter(x=>x<=d&&x>=wk[0]).length,0)),exp=wk.map((_,i)=>per*(i+1));
- const max=Math.max(1,...exp,...cum.slice(0,idx+1))*1.12,X=i=>14+i*(292/6),Y=v=>132-v/max*118;
- const act=cum.slice(0,idx+1).map((v,i)=>[X(i),Y(v)]),pl=exp.map((v,i)=>[X(i),Y(v)]);
+ const max=Math.max(2,...exp.map(v=>v*1.15),...cum.slice(0,idx+1))*1.05,X=i=>34+i*(296/6),Y=v=>164-v/max*146;
+ const act=cum.slice(0,idx+1).map((v,i)=>[X(i),Y(v)]),pts=a=>a.map(p=>p.join(',')).join(' L');
+ const hi=exp.map((v,i)=>[X(i),Y(v*1.15)]),lo=exp.map((v,i)=>[X(i),Y(v*.85)]),band='M'+pts(hi)+' L'+pts(lo.slice().reverse())+' Z';
  const ratio=exp[idx]?cum[idx]/exp[idx]:1,st=ratio>=.9?['On track','var(--social)']:ratio>=.6?['Slightly behind','var(--faith)']:['Behind','var(--bad)'];
- const last=act[act.length-1];
- return <><h2>This week's progress</h2><div className="card"><div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}><span className="mu">Check-ins vs your plan</span><span className="tag" style={{color:st[1]}}>{st[0]}</span></div>
- <svg viewBox="0 0 320 150" style={{width:'100%',marginTop:8}} role="img" aria-label={`Progress this week: ${st[0]}`}><defs><linearGradient id="cf" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor="#F5A04A" stopOpacity=".5"/><stop offset="1" stopColor="#F5A04A" stopOpacity="0"/></linearGradient><filter id="gl"><feGaussianBlur stdDeviation="3"/></filter></defs>
-  <path d={'M'+pl.map(q=>q.join(',')).join(' L')} fill="none" stroke="#9A9CB8" strokeWidth="1.5" strokeDasharray="4 4"/>
-  {act.length>1&&<><path d={smooth(act)+` L${last[0]},134 L${act[0][0]},134 Z`} fill="url(#cf)"/><path d={smooth(act)} fill="none" stroke="#F5A04A" strokeWidth="2.5" strokeLinecap="round"/></>}
-  <circle cx={last[0]} cy={last[1]} r="7" fill="#F5A04A" filter="url(#gl)"/><circle cx={last[0]} cy={last[1]} r="3.5" fill="#fff"/>
-  {DN.map((d,i)=><text key={d} x={X(i)} y="148" textAnchor="middle" fontSize="8" fill={i===idx?'#EEEAF6':'#9A9CB8'}>{d}</text>)}</svg>
- <div className="mu">Solid orange: what you did. Dashed: where you planned to be.</div></div></>}
+ const last=act[act.length-1],delta=Math.round(cum[idx]-exp[idx]),ticks=[0,.25,.5,.75,1].map(f=>Math.round(max*f));
+ const pil=Object.keys(PILLARS).map(k=>{const g=hs.filter(h=>h.pillar===k);return {k,done:g.reduce((a,h)=>a+h.logs.filter(x=>x>=wk[0]&&x<=wk[6]).length,0),exp:g.reduce((a,h)=>a+7/PER[h.freq],0)}});
+ return <><h2>This week's progress</h2><div className="card"><div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}><span className="mu">Check-ins vs your plan</span><span className="tag" style={{color:st[1]}}>{st[0]} · {delta>=0?'+':''}{delta}</span></div>
+ <svg viewBox="0 0 340 186" style={{width:'100%',marginTop:8}} role="img" aria-label={`Progress this week: ${st[0]}`}><defs>
+  <linearGradient id="cf" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor="#F5A04A" stopOpacity=".55"/><stop offset="1" stopColor="#F5A04A" stopOpacity="0"/></linearGradient>
+  <linearGradient id="bd" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor="#6FD6A8" stopOpacity=".22"/><stop offset="1" stopColor="#6FD6A8" stopOpacity=".05"/></linearGradient><filter id="gl"><feGaussianBlur stdDeviation="3"/></filter></defs>
+  {ticks.map(t=><g key={t}><line x1="32" x2="332" y1={Y(t)} y2={Y(t)} stroke="#2B3050" strokeDasharray={t?'2 3':''}/><text x="26" y={Y(t)+3} textAnchor="end" fontSize="8" fill="#9A9CB8">{t}</text></g>)}
+  <path d={band} fill="url(#bd)"/><path d={'M'+pts(exp.map((v,i)=>[X(i),Y(v)]))} fill="none" stroke="#6FD6A8" strokeOpacity=".7" strokeWidth="1.4" strokeDasharray="4 4"/>
+  {act.length>1&&<><path d={smooth(act)+` L${last[0]},${Y(0)} L${act[0][0]},${Y(0)} Z`} fill="url(#cf)"/><path d={smooth(act)} fill="none" stroke="#F5A04A" strokeWidth="6" opacity=".35" filter="url(#gl)"/><path className="draw" pathLength="1" d={smooth(act)} fill="none" stroke="#F5A04A" strokeWidth="2.6" strokeLinecap="round"/></>}
+  {act.map((p,i)=>i<act.length-1&&<circle key={i} cx={p[0]} cy={p[1]} r="3" fill="#0F1220" stroke="#F5A04A" strokeWidth="1.6"/>)}
+  <circle className="pulse" cx={last[0]} cy={last[1]} r="9" fill="#F5A04A" opacity=".35"/><circle cx={last[0]} cy={last[1]} r="4.5" fill="#fff" stroke="#F5A04A" strokeWidth="2"/>
+  <text x={last[0]} y={last[1]-12} textAnchor="middle" fontSize="10" fontWeight="700" fill="#F5A04A">{cum[idx]}</text>
+  {DN.map((d,i)=><text key={d} x={X(i)} y="180" textAnchor="middle" fontSize="9" fill={i===idx?'#EEEAF6':'#9A9CB8'}>{d}</text>)}
+  {cum[idx]===0&&<text x="182" y="92" textAnchor="middle" fontSize="10" fill="#9A9CB8">Tick a habit to start your curve</text>}</svg>
+ <div className="mu" style={{marginBottom:10}}>Orange: what you did. Green band: your on-track zone.</div>
+ {pil.map(p=><div key={p.k} style={{marginBottom:8}}><div style={{display:'flex',justifyContent:'space-between'}}><span className="mu">{PILLARS[p.k].n} · {PILLARS[p.k].e}</span><span className="mu">{p.done} / {Math.round(p.exp)}</span></div><div className="bar"><i style={{width:Math.min(100,p.exp?p.done/p.exp*100:0)+'%',background:PILLARS[p.k].c}}/></div></div>)}</div></>}
 
 export function WeekPlanner({uid}){
  const kv=useKV(uid),blocks=kv.get('blocks',[]),[ss,setSs]=useState([]),wide=useWide();

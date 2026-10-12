@@ -42,3 +42,11 @@ select{background:var(--s2);color:var(--tx);border:1px solid var(--ln);border-ra
  nav{top:0;bottom:0;right:auto;width:84px;flex-direction:column;justify-content:flex-start;gap:8px;padding:24px 6px;border-top:0;border-right:1px solid var(--ln)}nav button{padding:10px 4px}
  .dash{display:grid;grid-template-columns:repeat(12,1fr);gap:0 18px;align-items:start}.dash>.c12{grid-column:span 12}.dash>.c5{grid-column:span 5}.dash>.c6{grid-column:span 6}.dash>.c7{grid-column:span 7}
  .rings{width:190px}.form4{grid-template-columns:1.2fr 1fr 1fr 1fr}.auth{margin-top:16vh}}
+
+.heat i{background:#2a3055}.cal{flex:1;display:grid;grid-template-rows:repeat(7,18px);grid-auto-flow:column;grid-auto-columns:1fr;gap:4px}.cal i{border-radius:4px;background:#2a3055;display:block}
+.calab{display:grid;grid-template-rows:repeat(7,18px);gap:4px;font-size:.62rem;color:var(--mu);line-height:18px}.hero{flex-wrap:wrap}.legend{min-width:150px}
+.draw{stroke-dasharray:1;stroke-dashoffset:1;animation:draw 1.3s .15s ease forwards}.grow{transform-box:fill-box;transform-origin:bottom;animation:grow .6s cubic-bezier(.2,.8,.2,1) both}
+.pulse{transform-box:fill-box;transform-origin:center;animation:pulse 2.2s ease-in-out infinite}
+@keyframes draw{to{stroke-dashoffset:0}}@keyframes grow{from{transform:scaleY(0)}}@keyframes pulse{50%{transform:scale(1.5);opacity:.08}}
+@media(prefers-reduced-motion:reduce){.draw,.grow,.pulse{animation:none!important}.draw{stroke-dashoffset:0}}
+@media(min-width:820px){.rings{width:150px}}
