@@ -31,13 +31,13 @@ export function WeekCurve({hs}){
  <svg viewBox="0 0 340 186" style={{width:'100%',marginTop:8}} role="img" aria-label={`Progress this week: ${st[0]}`}><defs>
   <linearGradient id="cf" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor="#F5A04A" stopOpacity=".55"/><stop offset="1" stopColor="#F5A04A" stopOpacity="0"/></linearGradient>
   <linearGradient id="bd" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor="#6FD6A8" stopOpacity=".22"/><stop offset="1" stopColor="#6FD6A8" stopOpacity=".05"/></linearGradient><filter id="gl"><feGaussianBlur stdDeviation="3"/></filter></defs>
-  {ticks.map(t=><g key={t}><line x1="32" x2="332" y1={Y(t)} y2={Y(t)} stroke="#2B3050" strokeDasharray={t?'2 3':''}/><text x="26" y={Y(t)+3} textAnchor="end" fontSize="8" fill="#9A9CB8">{t}</text></g>)}
+  {ticks.map(t=><g key={t}><line x1="32" x2="332" y1={Y(t)} y2={Y(t)} stroke="#2B3050" strokeDasharray={t?'2 3':''}/><text x="26" y={Y(t)+3} textAnchor="end" fontSize="10" fill="#9A9CB8">{t}</text></g>)}
   <path d={band} fill="url(#bd)"/><path d={'M'+pts(exp.map((v,i)=>[X(i),Y(v)]))} fill="none" stroke="#6FD6A8" strokeOpacity=".7" strokeWidth="1.4" strokeDasharray="4 4"/>
   {act.length>1&&<><path d={smooth(act)+` L${last[0]},${Y(0)} L${act[0][0]},${Y(0)} Z`} fill="url(#cf)"/><path d={smooth(act)} fill="none" stroke="#F5A04A" strokeWidth="6" opacity=".35" filter="url(#gl)"/><path className="draw" pathLength="1" d={smooth(act)} fill="none" stroke="#F5A04A" strokeWidth="2.6" strokeLinecap="round"/></>}
   {act.map((p,i)=>i<act.length-1&&<circle key={i} cx={p[0]} cy={p[1]} r="3" fill="#0F1220" stroke="#F5A04A" strokeWidth="1.6"/>)}
   <circle className="pulse" cx={last[0]} cy={last[1]} r="9" fill="#F5A04A" opacity=".35"/><circle cx={last[0]} cy={last[1]} r="4.5" fill="#fff" stroke="#F5A04A" strokeWidth="2"/>
   <text x={last[0]} y={last[1]-12} textAnchor="middle" fontSize="10" fontWeight="700" fill="#F5A04A">{cum[idx]}</text>
-  {DN.map((d,i)=><text key={d} x={X(i)} y="180" textAnchor="middle" fontSize="9" fill={i===idx?'#EEEAF6':'#9A9CB8'}>{d}</text>)}
+  {DN.map((d,i)=><text key={d} x={X(i)} y="180" textAnchor="middle" fontSize="11" fill={i===idx?'#EEEAF6':'#9A9CB8'}>{d}</text>)}
   {cum[idx]===0&&<text x="182" y="92" textAnchor="middle" fontSize="10" fill="#9A9CB8">Tick a habit to start your curve</text>}</svg>
  <div className="mu" style={{marginBottom:10}}>Orange: what you did. Green band: your on-track zone.</div>
  {pil.map(p=><div key={p.k} style={{marginBottom:8}}><div style={{display:'flex',justifyContent:'space-between'}}><span className="mu">{PILLARS[p.k].n} · {PILLARS[p.k].e}</span><span className="mu">{p.done} / {Math.round(p.exp)}</span></div><div className="bar"><i style={{width:Math.min(100,p.exp?p.done/p.exp*100:0)+'%',background:PILLARS[p.k].c}}/></div></div>)}</div></>}
