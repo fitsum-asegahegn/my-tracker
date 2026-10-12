@@ -2,7 +2,8 @@ import {useEffect,useState,useCallback} from 'react';
 import {sb} from './lib/supabase.js';import {useKV} from './lib/kv.js';import {useRealtime} from './lib/realtime.js';import {PILLARS,PER,td} from './lib/logic.js';
 const DN=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],JD=[1,2,3,4,5,6,0];
 const mn=t=>{const m=/^(\d{1,2}):(\d{2})$/.exec((t||'').trim());return m?+m[1]*60+ +m[2]:null};
-const rng=t=>{const [a,b]=(t||'').split(/[–—-]/);const s=mn(a),e=mn(b);return s!=null&&e!=null&&e>s?[s,e]:null};
+const rng=t=>{const m=(t||'').match(/\d{1,2}:\d{2}/g);if(!m||m.length<2)return null;const a=mn(m[0]),e=mn(m[1]);return e>a?[a,e]:null};
+const useWide=()=>{const q='(min-width:820px)',has=typeof matchMedia!=='undefined';const [w,setW]=useState(()=>has&&matchMedia(q).matches);useEffect(()=>{if(!has)return;const m=matchMedia(q),f=()=>setW(m.matches);m.addEventListener('change',f);return()=>m.removeEventListener('change',f)},[]);return w};
 const weekDates=()=>{const n=new Date(),k=(n.getDay()+6)%7,o=[];for(let i=0;i<7;i++){const d=new Date(n);d.setDate(n.getDate()-k+i);o.push(td(d))}return o};
 const smooth=p=>p.map((q,i)=>i?`C${(p[i-1][0]+q[0])/2},${p[i-1][1]} ${(p[i-1][0]+q[0])/2},${q[1]} ${q[0]},${q[1]}`:`M${q[0]},${q[1]}`).join(' ');
 
@@ -25,30 +26,37 @@ export function WeekCurve({hs}){
  const last=act[act.length-1];
  return <><h2>This week's progress</h2><div className="card"><div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}><span className="mu">Check-ins vs your plan</span><span className="tag" style={{color:st[1]}}>{st[0]}</span></div>
  <svg viewBox="0 0 320 150" style={{width:'100%',marginTop:8}} role="img" aria-label={`Progress this week: ${st[0]}`}><defs><linearGradient id="cf" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor="#F5A04A" stopOpacity=".5"/><stop offset="1" stopColor="#F5A04A" stopOpacity="0"/></linearGradient><filter id="gl"><feGaussianBlur stdDeviation="3"/></filter></defs>
-  <path d={smooth(pl)} fill="none" stroke="#9A9CB8" strokeWidth="1.5" strokeDasharray="4 4"/>
+  <path d={'M'+pl.map(q=>q.join(',')).join(' L')} fill="none" stroke="#9A9CB8" strokeWidth="1.5" strokeDasharray="4 4"/>
   {act.length>1&&<><path d={smooth(act)+` L${last[0]},134 L${act[0][0]},134 Z`} fill="url(#cf)"/><path d={smooth(act)} fill="none" stroke="#F5A04A" strokeWidth="2.5" strokeLinecap="round"/></>}
   <circle cx={last[0]} cy={last[1]} r="7" fill="#F5A04A" filter="url(#gl)"/><circle cx={last[0]} cy={last[1]} r="3.5" fill="#fff"/>
   {DN.map((d,i)=><text key={d} x={X(i)} y="148" textAnchor="middle" fontSize="8" fill={i===idx?'#EEEAF6':'#9A9CB8'}>{d}</text>)}</svg>
  <div className="mu">Solid orange: what you did. Dashed: where you planned to be.</div></div></>}
 
 export function WeekPlanner({uid}){
- const kv=useKV(uid),blocks=kv.get('blocks',[]),[ss,setSs]=useState([]);
+ const kv=useKV(uid),blocks=kv.get('blocks',[]),[ss,setSs]=useState([]),wide=useWide();
  const load=useCallback(()=>sb.from('sessions').select('*').then(({data})=>setSs(data||[])),[]);useEffect(()=>{load()},[load]);useRealtime(['sessions'],load);
- const wk=weekDates(),ti=wk.indexOf(td()),[sel,setSel]=useState(Math.max(ti,0)),[f,setF]=useState({title:'',start:'19:00',end:'20:00',pillar:'class'}),jd=JD[sel];
- const items=[...ss.filter(s=>s.day===jd).map(s=>({id:'s'+s.id,t:s.name,r:rng(s.time),p:s.track==='Faith'?'faith':'class',note:s.room})),
-  ...blocks.filter(b=>b.day===jd).map(b=>({id:b.id,t:b.title,r:mn(b.start)!=null&&mn(b.end)>mn(b.start)?[mn(b.start),mn(b.end)]:null,p:b.pillar,custom:true}))].filter(x=>x.r).sort((a,b)=>a.r[0]-b.r[0]);
- const cols=[];items.forEach(it=>{let c=cols.findIndex(e=>e<=it.r[0]);if(c<0){c=cols.length;cols.push(0)}cols[c]=it.r[1];it.c=c});
- const nc=Math.max(1,cols.length),H0=6,H1=23,PX=44,now=new Date(),nm=now.getHours()*60+now.getMinutes();
- const add=()=>{if(!f.title.trim()||!(mn(f.end)>mn(f.start)))return alert('Add a title and make the end time later than the start.');kv.set('blocks',[...blocks,{id:crypto.randomUUID(),day:jd,...f,title:f.title.trim()}]);setF({...f,title:''})};
+ const wk=weekDates(),ti=wk.indexOf(td()),[sel,setSel]=useState(Math.max(ti,0)),[f,setF]=useState({title:'',start:'19:00',end:'20:00',pillar:'class',day:Math.max(ti,0)});
+ const H0=6,H1=23,PX=wide?40:44,H=(H1-H0)*PX,now=new Date(),nm=now.getHours()*60+now.getMinutes(),hh=m=>String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');
+ const build=i=>{const jd=JD[i];
+  const all=[...ss.filter(s=>s.day===jd).map(s=>({id:'s'+s.id,t:s.name,time:s.time,r:rng(s.time),p:s.track==='Faith'?'faith':'class',note:s.room})),
+   ...blocks.filter(b=>b.day===jd).map(b=>({id:b.id,t:b.title,r:mn(b.start)!=null&&mn(b.end)>mn(b.start)?[mn(b.start),mn(b.end)]:null,p:b.pillar,custom:true}))];
+  const items=all.filter(x=>x.r).sort((a,b)=>a.r[0]-b.r[0]),cols=[];items.forEach(it=>{let c=cols.findIndex(e=>e<=it.r[0]);if(c<0){c=cols.length;cols.push(0)}cols[c]=it.r[1];it.c=c});
+  return {items,bad:all.filter(x=>!x.r&&!x.custom),nc:Math.max(1,cols.length)}};
+ const blks=(i,off)=>{const {items,nc}=build(i);return items.map(it=><div key={it.id} className="blk" onClick={()=>it.custom&&confirm(`Remove "${it.t}"?`)&&kv.set('blocks',blocks.filter(b=>b.id!==it.id))}
+  style={{top:Math.max(0,(it.r[0]/60-H0)*PX),height:Math.max(24,(it.r[1]-it.r[0])/60*PX-2),left:`calc(${off}px + (100% - ${off}px) * ${it.c/nc})`,width:`calc((100% - ${off}px) / ${nc} - 3px)`,borderColor:PILLARS[it.p].c,background:PILLARS[it.p].c+'26'}}>
+  <b>{it.t}</b><small>{hh(it.r[0])}–{hh(it.r[1])}{it.note&&!wide?' · '+it.note:''}</small></div>)};
+ const nowl=(i,off)=>i===ti&&nm>=H0*60&&nm<=H1*60&&<div className="nowl" style={{top:(nm/60-H0)*PX,left:off}}/>;
+ const bad=[0,1,2,3,4,5,6].flatMap(i=>build(i).bad),add=()=>{if(!f.title.trim()||!(mn(f.end)>mn(f.start)))return alert('Add a title and make the end time later than the start.');kv.set('blocks',[...blocks,{id:crypto.randomUUID(),...f,day:JD[f.day],title:f.title.trim()}]);setF({...f,title:''})};
+ const hrs=Array.from({length:H1-H0+1},(_,i)=>i);
  return <><h1>Week</h1>
- <div className="strip">{wk.map((d,i)=><button key={d} className={(i===sel?'on ':'')+(i===ti?'today':'')} onClick={()=>setSel(i)}><small>{DN[i]}</small><b>{+d.slice(8)}</b></button>)}</div>
- <div className="tl" style={{height:(H1-H0)*PX}}>{Array.from({length:H1-H0+1},(_,i)=><div className="hr" key={i} style={{top:i*PX}}><span>{String(H0+i).padStart(2,'0')}:00</span></div>)}
-  {sel===ti&&nm>=H0*60&&nm<=H1*60&&<div className="nowl" style={{top:(nm/60-H0)*PX}}/>}
-  {items.map(it=>{const top=Math.max(0,(it.r[0]/60-H0)*PX),h=Math.max(26,(it.r[1]-it.r[0])/60*PX-2);return <div key={it.id} className="blk" onClick={()=>it.custom&&confirm(`Remove "${it.t}"?`)&&kv.set('blocks',blocks.filter(b=>b.id!==it.id))}
-   style={{top,height:h,left:`calc(46px + (100% - 46px) * ${it.c/nc})`,width:`calc((100% - 46px) / ${nc} - 4px)`,borderColor:PILLARS[it.p].c,background:PILLARS[it.p].c+'26'}}>
-   <b>{it.t}</b><small>{String(Math.floor(it.r[0]/60)).padStart(2,'0')}:{String(it.r[0]%60).padStart(2,'0')}–{String(Math.floor(it.r[1]/60)).padStart(2,'0')}:{String(it.r[1]%60).padStart(2,'0')}{it.note?' · '+it.note:''}</small></div>})}
-  {!items.length&&<div className="mu" style={{position:'absolute',left:60,top:20}}>Nothing planned. Add a block below.</div>}</div>
- <div className="card" style={{marginTop:12}}><label>Add a block to {DN[sel]}</label><input placeholder="e.g. Python practice" value={f.title} onChange={e=>setF({...f,title:e.target.value})}/>
- <div className="form3"><input type="time" value={f.start} onChange={e=>setF({...f,start:e.target.value})}/><input type="time" value={f.end} onChange={e=>setF({...f,end:e.target.value})}/>
+ {wide?<div className="wgrid"><div className="wrow wh"><span/>{wk.map((d,i)=><div key={d} className={i===ti?'today':''}><small>{DN[i]}</small><b>{+d.slice(8)}</b></div>)}</div>
+  <div className="wrow"><div className="wlab" style={{height:H}}>{hrs.map(h=><span key={h} style={{top:h*PX}}>{String(H0+h).padStart(2,'0')}:00</span>)}</div>
+  {wk.map((d,i)=><div key={d} className={'wcol'+(i===ti?' today':'')} style={{height:H,backgroundImage:`repeating-linear-gradient(to bottom,#232846 0,#232846 1px,transparent 1px,transparent ${PX}px)`}}>{nowl(i,0)}{blks(i,0)}</div>)}</div></div>
+ :<><div className="strip">{wk.map((d,i)=><button key={d} className={(i===sel?'on ':'')+(i===ti?'today':'')} onClick={()=>{setSel(i);setF(x=>({...x,day:i}))}}><small>{DN[i]}</small><b>{+d.slice(8)}</b></button>)}</div>
+  <div className="tl" style={{height:H}}>{hrs.map(h=><div className="hr" key={h} style={{top:h*PX}}><span>{String(H0+h).padStart(2,'0')}:00</span></div>)}{nowl(sel,44)}{blks(sel,46)}
+  {!build(sel).items.length&&<div className="mu" style={{position:'absolute',left:60,top:PX*3}}>Nothing planned. Add a block below.</div>}</div></>}
+ {bad.length>0&&<p className="mu">Couldn't place on the timeline (check the time format, e.g. 08:30–10:30): {bad.map(b=>`${b.t} (${b.time||'no time'})`).join(', ')}</p>}
+ <div className="card" style={{marginTop:12}}><label>Add a block</label><input placeholder="e.g. Python practice" value={f.title} onChange={e=>setF({...f,title:e.target.value})}/>
+ <div className="form4"><select value={f.day} onChange={e=>setF({...f,day:+e.target.value})}>{DN.map((d,i)=><option key={d} value={i}>{d}</option>)}</select><input type="time" value={f.start} onChange={e=>setF({...f,start:e.target.value})}/><input type="time" value={f.end} onChange={e=>setF({...f,end:e.target.value})}/>
  <select value={f.pillar} onChange={e=>setF({...f,pillar:e.target.value})}>{Object.entries(PILLARS).map(([k,v])=><option key={k} value={k}>{v.e}</option>)}</select></div>
  <button className="btn pri" onClick={add}>Add block</button><p className="mu">Classes from your timetable show here automatically. Tap one of your own blocks to remove it.</p></div></>}
