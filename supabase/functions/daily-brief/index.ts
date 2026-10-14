@@ -1,5 +1,12 @@
 import {createClient} from 'npm:@supabase/supabase-js@2';
 import webpush from 'npm:web-push@3.6.7';
+import {createECDH} from 'node:crypto';import {Buffer} from 'node:buffer';
+const clean=(s?:string)=>(s||'').trim().replace(/^["']|["']$/g,'').replace(/=+$/,'');
+// Reads the VAPID secrets defensively: strips quotes/padding, derives the true public key from the private key, normalises the subject.
+function vapidCfg(){const pub0=clean(Deno.env.get('VAPID_PUBLIC')),priv=clean(Deno.env.get('VAPID_PRIVATE'));if(!pub0||!priv)return null;let pub=pub0;
+  try{const e=createECDH('prime256v1');e.setPrivateKey(Buffer.from(priv,'base64url'));pub=e.getPublicKey().toString('base64url')}catch(_){}
+  const raw=(Deno.env.get('VAPID_SUBJECT')||'').trim(),subject=raw.startsWith('https:')?raw:'mailto:'+(raw.replace(/^mailto:/,'')||'me@example.com');
+  return {pub,priv,subject,mismatch:pub!==pub0}}
 const PER:Record<string,number>={d:1,w:7,m:30,m2:60,m6:180,y:365};
 const EM:Record<string,string>={faith:'✝️',class:'📚',social:'🤝'};
 const mins=(t:string)=>{const m=/(\d{1,2}):(\d{2})\s*([ap]m)?/i.exec(t||'');if(!m)return null;let h=+m[1];const ap=(m[3]||'').toLowerCase();if(ap==='pm'&&h<12)h+=12;if(ap==='am'&&h===12)h=0;return h*60+ +m[2]};
@@ -11,7 +18,7 @@ Deno.serve(async(req)=>{
   if(!authed)return new Response('unauthorized: send header x-cron-secret matching the CRON_SECRET secret',{status:401}); // only the cron job may call this
   const db=createClient(Deno.env.get('SUPABASE_URL')!,Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
   const token=Deno.env.get('TELEGRAM_BOT_TOKEN'),vp=Deno.env.get('VAPID_PUBLIC'),vs=Deno.env.get('VAPID_PRIVATE');
-  if(vp&&vs)webpush.setVapidDetails('mailto:'+(Deno.env.get('VAPID_SUBJECT')||'me@example.com'),vp,vs);
+  const V=vapidCfg();if(V)webpush.setVapidDetails(V.subject,V.pub,V.priv);
   const A=new Date(Date.now()+3*3600e3),today=A.toISOString().slice(0,10),wd=A.getUTCDay(),mins=A.getUTCHours()*60+A.getUTCMinutes();
   const toM=(t:string)=>{const [h,m]=(t||'00:00').split(':');return +h*60+ +m};
   const due=(t:string,last:string|null)=>mins>=toM(t)&&mins-toM(t)<=120&&last!==today; // 2h catch-up window
