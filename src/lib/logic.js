@@ -16,3 +16,10 @@ const wkRange=()=>{const n=new Date(),k=(n.getDay()+6)%7,a=new Date(n),b=new Dat
 // Ring % = how much of THIS WEEK's plan for the pillar is done (starts at 0 each Monday)
 export const score=(hs,p)=>{const [a,b]=wkRange(),g=hs.filter(h=>h.pillar===p),exp=g.reduce((s,h)=>s+7/PER[h.freq],0),done=g.reduce((s,h)=>s+h.logs.filter(x=>x>=a&&x<=b).length,0);return exp?Math.min(100,Math.round(done/exp*100)):0};
 export const streak=h=>{let s=0,d=new Date();if(!h.logs.includes(td()))d.setDate(d.getDate()-1);while(h.logs.includes(td(d))){s++;d.setDate(d.getDate()-1)}return s};
+// ---- 12-hour time helpers (stored times stay 24h; only the display changes) ----
+export const mins=t=>{const m=/(\d{1,2}):(\d{2})\s*([ap]m)?/i.exec(t||'');if(!m)return null;let h=+m[1];const ap=(m[3]||'').toLowerCase();if(ap==='pm'&&h<12)h+=12;if(ap==='am'&&h===12)h=0;return h*60+ +m[2]};
+export const fmt12=m=>`${Math.floor(m/60)%12||12}:${String(m%60).padStart(2,'0')} ${Math.floor(m/60)<12?'AM':'PM'}`;
+export const hourLabel=h=>`${h%12||12} ${h%24<12?'AM':'PM'}`;
+export const parseRange=t=>{const p=(t||'').match(/\d{1,2}:\d{2}\s*(?:[ap]m)?/gi);if(!p||p.length<2)return null;const a=mins(p[0]),b=mins(p[1]);return a!=null&&b!=null&&b>a?[a,b]:null};
+export const rangeLabel=(a,b)=>(a<720)===(b<720)?fmt12(a).replace(/ [AP]M$/,'')+'–'+fmt12(b):fmt12(a)+' – '+fmt12(b);
+export const fmtRange=t=>{const r=parseRange(t);return r?rangeLabel(r[0],r[1]):(t||'')};
