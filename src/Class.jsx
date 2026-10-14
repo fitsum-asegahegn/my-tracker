@@ -1,5 +1,5 @@
 import {useEffect,useState,useCallback} from 'react';
-import {sb} from './lib/supabase.js';import {useRealtime} from './lib/realtime.js';import {td} from './lib/logic.js';import {useKV} from './lib/kv.js';
+import {sb} from './lib/supabase.js';import {useRealtime} from './lib/realtime.js';import {td,fmtRange} from './lib/logic.js';import {useKV} from './lib/kv.js';
 export const DAYS=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 export const CRIT=['Interest in it','Job prospects','Workload fit','Uses my stats strength','Teaching quality'];
 export const ROAD0=['Python basics: variables, loops, functions','pandas + NumPy on a real dataset','scikit-learn: regression, trees, evaluation','First end-to-end ML project on GitHub','Neural nets with PyTorch','LLM / agents mini project','SQL + Git fluency'].map(t=>[t,0]);
@@ -7,18 +7,18 @@ export const HRS0={AI:0,CDS:0,Code:0},DEC0={AI:[3,3,3,3,3],CDS:[3,3,3,3,3]},JOB0
 function useSessions(){const [s,setS]=useState([]);const load=useCallback(()=>sb.from('sessions').select('*').then(({data})=>setS((data||[]).sort((a,b)=>(a.time||'').localeCompare(b.time||'')))),[]);useEffect(()=>{load()},[load]);useRealtime(['sessions'],load);return [s,load]}
 const tc=t=>t==='Faith'?'var(--faith)':'var(--class)';
 export function TodayClasses(){const [ss]=useSessions();const x=ss.filter(s=>s.day===new Date().getDay());
- return x.length?<><h2>Today's schedule</h2><div className="card">{x.map(s=><div className="row" key={s.id}><div className="t"><b>{s.time}</b> {s.name}<small>{[s.room,s.who].filter(Boolean).join(' · ')}</small></div><span className="tag" style={{color:tc(s.track)}}>{s.track}</span></div>)}</div></>:null}
+ return x.length?<><h2>Today's schedule</h2><div className="card">{x.map(s=><div className="row" key={s.id}><div className="t"><b>{fmtRange(s.time)}</b> {s.name}<small>{[s.room,s.who].filter(Boolean).join(' · ')}</small></div><span className="tag" style={{color:tc(s.track)}}>{s.track}</span></div>)}</div></>:null}
 const Seg=({v,on})=><div className="seg">{[1,2,3,4,5].map(n=><button key={n} className={n===v?'on':''} onClick={()=>on(n)}>{n}</button>)}</div>;
 export default function ClassExtras({uid}){
- const [ss,load]=useSessions(),kv=useKV(uid),[f,setF]=useState({name:'',day:1,time:'08:30–11:30',track:'CDS'}),[tk,setTk]=useState('');
+ const [ss,load]=useSessions(),kv=useKV(uid),[f,setF]=useState({name:'',day:1,start:'08:30',end:'11:30',track:'CDS'}),[tk,setTk]=useState('');
  const hrs=kv.get('hrs',HRS0),dec=kv.get('dec',DEC0),road=kv.get('road',ROAD0),job=kv.get('job',JOB0);
  const sum=k=>dec[k].reduce((a,b)=>a+b,0),A=sum('AI'),C=sum('CDS'),tasks=kv.get('tasks',[]);
- const add=async()=>{if(!f.name.trim())return;await sb.from('sessions').insert({...f,day:+f.day,user_id:uid});setF({...f,name:''});load()};
+ const add=async()=>{if(!f.name.trim()||f.end<=f.start)return alert('Add a course name and make the end time later than the start.');await sb.from('sessions').insert({name:f.name.trim(),day:+f.day,time:`${f.start}–${f.end}`,track:f.track,user_id:uid});setF({...f,name:''});load()};
  const rm=async id=>{await sb.from('sessions').delete().eq('id',id);load()};
  return <>
- <h2>Weekly timetable</h2>{[1,2,3,4,5,6].map(d=>{const x=ss.filter(s=>s.day===d&&s.track!=='Faith');return x.length?<div key={d}><div className="day">{DAYS[d]}</div><div className="card">{x.map(s=><div className="row" key={s.id}><div className="t"><b>{s.name}</b><small>{s.time}{s.room?' · '+s.room:''}{s.who?' · '+s.who:''}</small></div><span className="tag" style={{color:tc(s.track)}}>{s.track}</span><button className="btn sm" onClick={()=>rm(s.id)} aria-label="remove">✕</button></div>)}</div></div>:null})}
+ <h2>Weekly timetable</h2>{[1,2,3,4,5,6].map(d=>{const x=ss.filter(s=>s.day===d&&s.track!=='Faith');return x.length?<div key={d}><div className="day">{DAYS[d]}</div><div className="card">{x.map(s=><div className="row" key={s.id}><div className="t"><b>{s.name}</b><small>{fmtRange(s.time)}{s.room?' · '+s.room:''}{s.who?' · '+s.who:''}</small></div><span className="tag" style={{color:tc(s.track)}}>{s.track}</span><button className="btn sm" onClick={()=>rm(s.id)} aria-label="remove">✕</button></div>)}</div></div>:null})}
  <div className="card"><label>Add a class session</label><input placeholder="Course name" value={f.name} onChange={e=>setF({...f,name:e.target.value})}/>
- <div className="form3"><select value={f.day} onChange={e=>setF({...f,day:e.target.value})}>{[1,2,3,4,5,6].map(d=><option key={d} value={d}>{DAYS[d]}</option>)}</select><input value={f.time} onChange={e=>setF({...f,time:e.target.value})}/><select value={f.track} onChange={e=>setF({...f,track:e.target.value})}><option>AI</option><option>CDS</option></select></div>
+ <div className="form4"><select value={f.day} onChange={e=>setF({...f,day:e.target.value})}>{[1,2,3,4,5,6].map(d=><option key={d} value={d}>{DAYS[d]}</option>)}</select><input type="time" value={f.start} onChange={e=>setF({...f,start:e.target.value})}/><input type="time" value={f.end} onChange={e=>setF({...f,end:e.target.value})}/><select value={f.track} onChange={e=>setF({...f,track:e.target.value})}><option>AI</option><option>CDS</option></select></div>
  <button className="btn pri" onClick={add}>Add session</button><p className="mu">AI times came from your photo. Check them against the printed sheet. CDS courses: Optimization Methods, Statistics for Data Science, Programming & Linux OS, Mathematical Methods & Modeling.</p></div>
  <h2>Study hours</h2><div className="card grid3">{Object.keys(HRS0).map(k=><div key={k}><b>{hrs[k]}h</b><span className="mu">{k}</span><br/><button className="btn sm" onClick={()=>{kv.set('hrs',{...hrs,[k]:hrs[k]+.5});const sl=kv.get('studylog',{});kv.set('studylog',{...sl,[td()]:(sl[td()]||0)+.5})}}>+0.5h</button></div>)}</div>
  <h2>Which one to drop?</h2><div className="card">{CRIT.map((c,i)=><div key={c}><label>{c}</label>{['AI','CDS'].map(k=><div className="seg-row" key={k}><span className="mu">{k}</span><Seg v={dec[k][i]} on={n=>kv.set('dec',{...dec,[k]:dec[k].map((x,j)=>j===i?n:x)})}/></div>)}</div>)}

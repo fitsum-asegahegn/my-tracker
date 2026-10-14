@@ -1,8 +1,8 @@
 import {useEffect,useState,useCallback} from 'react';
-import {sb} from './lib/supabase.js';import {useKV} from './lib/kv.js';import {useRealtime} from './lib/realtime.js';import {PILLARS,PER,td} from './lib/logic.js';
+import {sb} from './lib/supabase.js';import {useKV} from './lib/kv.js';import {useRealtime} from './lib/realtime.js';import {PILLARS,PER,td,parseRange,rangeLabel,hourLabel} from './lib/logic.js';
 const DN=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],JD=[1,2,3,4,5,6,0];
 const mn=t=>{const m=/^(\d{1,2}):(\d{2})$/.exec((t||'').trim());return m?+m[1]*60+ +m[2]:null};
-const rng=t=>{const m=(t||'').match(/\d{1,2}:\d{2}/g);if(!m||m.length<2)return null;const a=mn(m[0]),e=mn(m[1]);return e>a?[a,e]:null};
+const rng=parseRange;
 const useWide=()=>{const q='(min-width:820px)',has=typeof matchMedia!=='undefined';const [w,setW]=useState(()=>has&&matchMedia(q).matches);useEffect(()=>{if(!has)return;const m=matchMedia(q),f=()=>setW(m.matches);m.addEventListener('change',f);return()=>m.removeEventListener('change',f)},[]);return w};
 const weekDates=()=>{const n=new Date(),k=(n.getDay()+6)%7,o=[];for(let i=0;i<7;i++){const d=new Date(n);d.setDate(n.getDate()-k+i);o.push(td(d))}return o};
 const dayFrac=()=>{const n=new Date(),h=n.getHours()+n.getMinutes()/60;return Math.min(1,Math.max(0,(h-6)/16))}; // share of today that has passed (06:00-22:00)
@@ -54,16 +54,16 @@ export function WeekPlanner({uid}){
   return {items,bad:all.filter(x=>!x.r&&!x.custom),nc:Math.max(1,cols.length)}};
  const blks=(i,off)=>{const {items,nc}=build(i);return items.map(it=><div key={it.id} className="blk" onClick={()=>it.custom&&confirm(`Remove "${it.t}"?`)&&kv.set('blocks',blocks.filter(b=>b.id!==it.id))}
   style={{top:Math.max(0,(it.r[0]/60-H0)*PX),height:Math.max(24,(it.r[1]-it.r[0])/60*PX-2),left:`calc(${off}px + (100% - ${off}px) * ${it.c/nc})`,width:`calc((100% - ${off}px) / ${nc} - 3px)`,borderColor:PILLARS[it.p].c,background:PILLARS[it.p].c+'26'}}>
-  <b>{it.t}</b><small>{hh(it.r[0])}–{hh(it.r[1])}{it.note&&!wide?' · '+it.note:''}</small></div>)};
+  <b>{it.t}</b><small>{rangeLabel(it.r[0],it.r[1])}{it.note&&!wide?' · '+it.note:''}</small></div>)};
  const nowl=(i,off)=>i===ti&&nm>=H0*60&&nm<=H1*60&&<div className="nowl" style={{top:(nm/60-H0)*PX,left:off}}/>;
  const bad=[0,1,2,3,4,5,6].flatMap(i=>build(i).bad),add=()=>{if(!f.title.trim()||!(mn(f.end)>mn(f.start)))return alert('Add a title and make the end time later than the start.');kv.set('blocks',[...blocks,{id:crypto.randomUUID(),...f,day:JD[f.day],title:f.title.trim()}]);setF({...f,title:''})};
  const hrs=Array.from({length:H1-H0+1},(_,i)=>i);
  return <><h1>Week</h1>
  {wide?<div className="wgrid"><div className="wrow wh"><span/>{wk.map((d,i)=><div key={d} className={i===ti?'today':''}><small>{DN[i]}</small><b>{+d.slice(8)}</b></div>)}</div>
-  <div className="wrow"><div className="wlab" style={{height:H}}>{hrs.map(h=><span key={h} style={{top:h*PX}}>{String(H0+h).padStart(2,'0')}:00</span>)}</div>
+  <div className="wrow"><div className="wlab" style={{height:H}}>{hrs.map(h=><span key={h} style={{top:h*PX}}>{hourLabel(H0+h)}</span>)}</div>
   {wk.map((d,i)=><div key={d} className={'wcol'+(i===ti?' today':'')} style={{height:H,backgroundImage:`repeating-linear-gradient(to bottom,#232846 0,#232846 1px,transparent 1px,transparent ${PX}px)`}}>{nowl(i,0)}{blks(i,0)}</div>)}</div></div>
  :<><div className="strip">{wk.map((d,i)=><button key={d} className={(i===sel?'on ':'')+(i===ti?'today':'')} onClick={()=>{setSel(i);setF(x=>({...x,day:i}))}}><small>{DN[i]}</small><b>{+d.slice(8)}</b></button>)}</div>
-  <div className="tl" style={{height:H}}>{hrs.map(h=><div className="hr" key={h} style={{top:h*PX}}><span>{String(H0+h).padStart(2,'0')}:00</span></div>)}{nowl(sel,44)}{blks(sel,46)}
+  <div className="tl" style={{height:H}}>{hrs.map(h=><div className="hr" key={h} style={{top:h*PX}}><span>{hourLabel(H0+h)}</span></div>)}{nowl(sel,44)}{blks(sel,46)}
   {!build(sel).items.length&&<div className="mu" style={{position:'absolute',left:60,top:PX*3}}>Nothing planned. Add a block below.</div>}</div></>}
  {bad.length>0&&<p className="mu">Couldn't place on the timeline (check the time format, e.g. 08:30–10:30): {bad.map(b=>`${b.t} (${b.time||'no time'})`).join(', ')}</p>}
  <div className="card" style={{marginTop:12}}><label>Add a block</label><input placeholder="e.g. Python practice" value={f.title} onChange={e=>setF({...f,title:e.target.value})}/>
