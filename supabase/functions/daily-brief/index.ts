@@ -2,6 +2,9 @@ import {createClient} from 'npm:@supabase/supabase-js@2';
 import webpush from 'npm:web-push@3.6.7';
 const PER:Record<string,number>={d:1,w:7,m:30,m2:60,m6:180,y:365};
 const EM:Record<string,string>={faith:'✝️',class:'📚',social:'🤝'};
+const mins=(t:string)=>{const m=/(\d{1,2}):(\d{2})\s*([ap]m)?/i.exec(t||'');if(!m)return null;let h=+m[1];const ap=(m[3]||'').toLowerCase();if(ap==='pm'&&h<12)h+=12;if(ap==='am'&&h===12)h=0;return h*60+ +m[2]};
+const f12=(m:number)=>`${Math.floor(m/60)%12||12}:${String(m%60).padStart(2,'0')} ${Math.floor(m/60)<12?'AM':'PM'}`;
+const fmtT=(t:string)=>{const p=(t||'').match(/\d{1,2}:\d{2}\s*(?:[ap]m)?/gi);if(!p||p.length<2)return t;const a=mins(p[0]),b=mins(p[1]);if(a==null||b==null)return t;return (a<720)===(b<720)?f12(a).replace(/ [AP]M$/,'')+'–'+f12(b):f12(a)+' – '+f12(b)};
 Deno.serve(async(req)=>{
   const cs=Deno.env.get('CRON_SECRET'),sk=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
   const authed=(cs&&req.headers.get('x-cron-secret')===cs)||(sk&&req.headers.get('Authorization')===`Bearer ${sk}`);
@@ -38,7 +41,7 @@ Deno.serve(async(req)=>{
     const call=(fr??[]).map((f:any)=>({n:f.name,g:gap(today,f.last??f.created),e:f.every})).filter(f=>f.g>=f.e).sort((a,b)=>b.g/b.e-a.g/a.e).slice(0,3);
     for(const slot of slots){
       const L=[slot==='am'?'🌅 Good morning, '+p.name:'🌙 Evening check',''];
-      if(slot==='am'&&ss?.length)L.push('📚 Today:',...ss.map((s:any)=>`• ${s.time} ${s.name}${s.room?' ('+s.room+')':''}`),'');
+      if(slot==='am'&&ss?.length)L.push('📚 Today:',...ss.map((s:any)=>`• ${fmtT(s.time)} ${s.name}${s.room?' ('+s.room+')':''}`),'');
       L.push(open.length?'⏳ Still open:\n'+open.slice(0,8).map((h:any)=>'• '+h.name).join('\n'):'🎉 All on track');
       if(call.length)L.push('','🤝 Call today:',...call.map(f=>`• ${f.n} (${f.g} days)`));
       const sent=await deliver(p.id,p.tg_chat,L.join('\n'),slot==='am'?'ሕይወቴ — good morning':'ሕይወቴ — evening check',open.length?`${open.length} still open${call.length?` · call ${call[0].n}`:''}`:'All on track 🎉');
