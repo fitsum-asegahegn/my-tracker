@@ -1,5 +1,6 @@
 import {createClient} from 'npm:@supabase/supabase-js@2';
 import webpush from 'npm:web-push@3.6.7';
+import {coachMessage,weekStudy} from '../_shared/coach.ts';
 import {createECDH} from 'node:crypto';import {Buffer} from 'node:buffer';
 const clean=(s?:string)=>(s||'').trim().replace(/^["']|["']$/g,'').replace(/=+$/,'');
 // Reads the VAPID secrets defensively: strips quotes/padding, derives the true public key from the private key, normalises the subject.
@@ -47,11 +48,11 @@ Deno.serve(async(req)=>{
     const open=hs.filter((h:any)=>{const last=h.logs[h.logs.length-1];if(h.freq==='d')return last!==today;return gap(today,last??p.start_day)>=PER[h.freq]-2&&last!==today});
     const call=(fr??[]).map((f:any)=>({n:f.name,g:gap(today,f.last??f.created),e:f.every})).filter(f=>f.g>=f.e).sort((a,b)=>b.g/b.e-a.g/a.e).slice(0,3);
     for(const slot of slots){
-      const L=[slot==='am'?'🌅 Good morning, '+p.name:'🌙 Evening check',''];
-      if(slot==='am'&&ss?.length)L.push('📚 Today:',...ss.map((s:any)=>`• ${fmtT(s.time)} ${s.name}${s.room?' ('+s.room+')':''}`),'');
-      L.push(open.length?'⏳ Still open:\n'+open.slice(0,8).map((h:any)=>'• '+h.name).join('\n'):'🎉 All on track');
-      if(call.length)L.push('','🤝 Call today:',...call.map(f=>`• ${f.n} (${f.g} days)`));
-      const sent=await deliver(p.id,p.tg_chat,L.join('\n'),slot==='am'?'ሕይወቴ — good morning':'ሕይወቴ — evening check',open.length?`${open.length} still open${call.length?` · call ${call[0].n}`:''}`:'All on track 🎉');
+      const kvr=await db.from('kv').select('key,value').eq('user_id',p.id).in('key',['studylog','target','msglog']),KV:any=Object.fromEntries((kvr.data??[]).map((r:any)=>[r.key,r.value]));
+      const R=await coachMessage({slot,name:p.name,hs,today,frac:Math.min(1,Math.max(0,(mins/60-6)/16)),age:gap(today,p.start_day),study:weekStudy(KV.studylog,today),target:KV.target||10,
+        classes:(ss??[]).map((s:any)=>`${fmtT(s.time)} ${s.name}${s.room?' ('+s.room+')':''}`),call:call.map(f=>`${f.n} (${f.g} days)`),used:KV.msglog?.ids||[],lastHeads:KV.msglog?.heads||[],apiKey:Deno.env.get('ANTHROPIC_API_KEY'),model:Deno.env.get('CLAUDE_MODEL')});
+      await db.from('kv').upsert({user_id:p.id,key:'msglog',value:{ids:[...(KV.msglog?.ids||[]),...R.ids].slice(-16),heads:[...(KV.msglog?.heads||[]),R.text.split('\n')[0]].slice(-4)}});
+      const sent=await deliver(p.id,p.tg_chat,R.text,slot==='am'?'ሕይወቴ — good morning':'ሕይወቴ — evening check',open.length?`${open.length} still open${call.length?` · call ${call[0].n}`:''}`:'All on track 🎉');
       if(sent){await db.from('profiles').update(slot==='am'?{last_am:today}:{last_pm:today}).eq('id',p.id);out.reminders++} // only mark done when delivered, so a failed send retries on the next tick
     }
   }
