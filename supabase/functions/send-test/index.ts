@@ -1,5 +1,6 @@
 import {createClient} from 'npm:@supabase/supabase-js@2';
 import webpush from 'npm:web-push@3.6.7';
+import {coachMessage,weekStudy,fmtTime} from '../_shared/coach.ts';
 import {createECDH} from 'node:crypto';import {Buffer} from 'node:buffer';
 const clean=(s?:string)=>(s||'').trim().replace(/^["']|["']$/g,'').replace(/=+$/,'');
 // Reads the VAPID secrets defensively: strips quotes/padding, derives the true public key from the private key, normalises the subject.
@@ -15,6 +16,16 @@ Deno.serve(async(req)=>{
   const db=createClient(Deno.env.get('SUPABASE_URL')!,Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
   const {data:{user}}=await db.auth.getUser(jwt);            // only a signed-in user can test, and only for themselves
   if(!user)return json({error:'not signed in'},401);
+  const body=await req.json().catch(()=>({}));
+  if(body.coach){ // preview: build today's coach message for this user and send it to their Telegram
+    const slot=body.coach==='am'?'am':'pm',A=new Date(Date.now()+3*3600e3),today=A.toISOString().slice(0,10),gp=(a:string,b:string)=>Math.round((+new Date(a)-+new Date(b))/864e5);
+    const [{data:h},{data:ss},{data:fr},{data:kvr},{data:pr}]=await Promise.all([db.from('habits').select('name,pillar,freq,habit_logs(day)').eq('user_id',user.id).order('sort'),db.from('sessions').select('time,name,room').eq('user_id',user.id).eq('day',A.getUTCDay()).order('time'),db.from('friends').select('name,every,last,created').eq('user_id',user.id),db.from('kv').select('key,value').eq('user_id',user.id).in('key',['studylog','target']),db.from('profiles').select('name,tg_chat,start_day').eq('id',user.id).single()]);
+    const KV:any=Object.fromEntries((kvr??[]).map((r:any)=>[r.key,r.value])),call=(fr??[]).map((f:any)=>({n:f.name,g:gp(today,f.last??f.created),e:f.every})).filter((f:any)=>f.g>=f.e).sort((a:any,b:any)=>b.g/b.e-a.g/a.e).slice(0,3);
+    const R=await coachMessage({slot,name:pr?.name||'friend',hs:(h??[]).map((x:any)=>({name:x.name,pillar:x.pillar,freq:x.freq,logs:(x.habit_logs??[]).map((l:any)=>l.day)})),today,frac:slot==='am'?.06:.9,age:gp(today,pr?.start_day||today),study:weekStudy(KV.studylog,today),target:KV.target||10,
+      classes:(ss??[]).map((s:any)=>`${fmtTime(s.time)} ${s.name}${s.room?' ('+s.room+')':''}`),call:call.map((f:any)=>`${f.n} (${f.g} days)`),used:[],lastHeads:[],apiKey:Deno.env.get('ANTHROPIC_API_KEY'),model:Deno.env.get('CLAUDE_MODEL')});
+    let tg=false;const token=Deno.env.get('TELEGRAM_BOT_TOKEN');if(token&&pr?.tg_chat){tg=(await fetch(`https://api.telegram.org/bot${token}/sendMessage`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:pr.tg_chat,text:R.text})})).ok}
+    return json({text:R.text,telegram:tg});
+  }
   const out={push:0,removed:0,serverKey:'',telegram:false,errors:[] as string[]};
   const V=vapidCfg(),token=Deno.env.get('TELEGRAM_BOT_TOKEN');
   const [{data:subs},{data:p}]=await Promise.all([db.from('push_subs').select('*').eq('user_id',user.id),db.from('profiles').select('tg_chat,name').eq('id',user.id).single()]);
